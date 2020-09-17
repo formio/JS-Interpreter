@@ -1,0 +1,23 @@
+{
+  "name": "js-interpreter",
+  "version": "1.0.0",
+  "description": "JS-Interpreter",
+  "main": "interpreter.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/formio/JS-Interpreter.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "Apache 2.0",
+  "bugs": {
+    "url": "https://github.com/formio/JS-Interpreter/issues"
+  },
+  "homepage": "https://github.com/formio/JS-Interpreter#readme",
+  "dependencies": {
+    "acorn": "^8.0.1"
+  }
+}
