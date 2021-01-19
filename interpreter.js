@@ -262,7 +262,7 @@ Interpreter.stripLocations_ = function(node, start, end) {
  * 1 - execute natively (risk of unresponsive program).
  * 2 - execute in separate thread (not supported by IE 9).
  */
-Interpreter.prototype['REGEXP_MODE'] = 2;
+Interpreter.prototype['REGEXP_MODE'] = 1;
 
 /**
  * If REGEXP_MODE = 2, the length of time (in ms) to allow a RegExp
