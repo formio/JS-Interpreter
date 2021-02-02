@@ -262,7 +262,7 @@ Interpreter.stripLocations_ = function(node, start, end) {
  * 1 - execute natively (risk of unresponsive program).
  * 2 - execute in separate thread (not supported by IE 9).
  */
-Interpreter.prototype['REGEXP_MODE'] = 2;
+Interpreter.prototype['REGEXP_MODE'] = 1;
 
 /**
  * If REGEXP_MODE = 2, the length of time (in ms) to allow a RegExp
@@ -908,6 +908,55 @@ Interpreter.prototype.initArray = function(globalObject) {
                    this.createNativeFunction(wrapper, false),
                    Interpreter.NONENUMERABLE_DESCRIPTOR);
 
+  wrapper = function() {
+    var arr = Array.prototype.slice.call(arguments);
+    return thisInterpreter.arrayNativeToPseudo(arr);
+  };
+  this.setProperty(this.ARRAY, 'of',
+                   this.createNativeFunction(wrapper, false),
+                   Interpreter.NONENUMERABLE_DESCRIPTOR);
+
+  wrapper = (function() {
+    var toInteger = function (value) {
+      var number = Number(value);
+      if (isNaN(number)) { return 0; }
+      if (number === 0 || !isFinite(number)) { return number; }
+      return (number > 0 ? 1 : -1) * Math.floor(Math.abs(number));
+    };
+    var maxSafeInteger = Math.pow(2, 53) - 1;
+    var toLength = function (value) {
+      var len = toInteger(value);
+      return Math.min(Math.max(len, 0), maxSafeInteger);
+    };
+
+    return function from(arrayLike) {
+      var items = Object(thisInterpreter.pseudoToNative(arrayLike));
+
+      if (arrayLike == null) {
+        throw new TypeError('Array.from requires an array-like object - not null or undefined');
+      }
+
+      var len = toLength(items.length);
+
+      var A = new Array(len);
+
+      var k = 0;
+      var kValue;
+      while (k < len) {
+        kValue = items[k];
+        A[k] = kValue;
+        k += 1;
+      }
+
+      A.length = len;
+
+      return thisInterpreter.arrayNativeToPseudo(A);
+    };
+  }());
+  this.setProperty(this.ARRAY, 'from',
+                   this.createNativeFunction(wrapper, false),
+                   Interpreter.NONENUMERABLE_DESCRIPTOR);
+
   // Instance methods on Array.
   this.setProperty(this.ARRAY_PROTO, 'length', 0,
       {configurable: false, enumerable: false, writable: true});
@@ -1004,6 +1053,217 @@ Interpreter.prototype.initArray = function(globalObject) {
   this.setNativeFunctionPrototype(this.ARRAY, 'sort', wrapper);
 
   this.polyfills_.push(
+    // Plyfill copied from:
+    // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/fill
+    "Object.defineProperty(Array.prototype, 'fill', {",
+      "value: function(value) {",
+        "if (this == null) {",
+          "throw new TypeError('this is null or not defined');",
+        "}",
+
+        "var O = Object(this);",
+
+        "var len = O.length >>> 0;",
+
+        "var start = arguments[1];",
+        "var relativeStart = start >> 0;",
+
+        "var k = relativeStart < 0 ?",
+          "Math.max(len + relativeStart, 0) :",
+          "Math.min(relativeStart, len);",
+
+        "var end = arguments[2];",
+        "var relativeEnd = end === undefined ?",
+          "len : end >> 0;",
+
+        "var final = relativeEnd < 0 ?",
+          "Math.max(len + relativeEnd, 0) :",
+          "Math.min(relativeEnd, len);",
+
+        "while (k < final) {",
+          "O[k] = value;",
+          "k++;",
+        "}",
+
+        "return O;",
+      "}",
+    "});",
+
+    // Polyfill copied from:
+    // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/copyWithin
+    "Object.defineProperty(Array.prototype, 'copyWithin', {",
+      "value: function(target, start/*, end*/) {",
+        "if (this == null) {",
+          "throw new TypeError('this is null or not defined');",
+        "}",
+
+        "var O = Object(this);",
+
+        "var len = O.length >>> 0;",
+
+        "var relativeTarget = target >> 0;",
+
+        "var to = relativeTarget < 0 ?",
+          "Math.max(len + relativeTarget, 0) :",
+          "Math.min(relativeTarget, len);",
+
+        "var relativeStart = start >> 0;",
+
+        "var from = relativeStart < 0 ?",
+          "Math.max(len + relativeStart, 0) :",
+          "Math.min(relativeStart, len);",
+
+        "var end = arguments[2];",
+        "var relativeEnd = end === undefined ? len : end >> 0;",
+
+        "var final = relativeEnd < 0 ?",
+          "Math.max(len + relativeEnd, 0) :",
+          "Math.min(relativeEnd, len);",
+
+        "var count = Math.min(final - from, len - to);",
+
+        "var direction = 1;",
+
+        "if (from < to && to < (from + count)) {",
+          "direction = -1;",
+          "from += count - 1;",
+          "to += count - 1;",
+        "}",
+
+        "while (count > 0) {",
+          "if (from in O) {",
+            "O[to] = O[from];",
+          "} else {",
+            "delete O[to];",
+          "}",
+
+          "from += direction;",
+          "to += direction;",
+          "count--;",
+        "}",
+
+        "return O;",
+      "};",
+    "});",
+
+    // Polyfill copied from:
+    // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/find
+    "Object.defineProperty(Array.prototype, 'find', {",
+      "value: function(predicate) {",
+        "if (this == null) {",
+          "throw new TypeError('\"this\" is null or not defined');",
+        "}",
+
+        "var o = Object(this);",
+
+        "var len = o.length >>> 0;",
+
+        "if (typeof predicate !== 'function') {",
+          "throw new TypeError('predicate must be a function');",
+        "}",
+
+        "var thisArg = arguments[1];",
+
+        "var k = 0;",
+
+        "while (k < len) {",
+          "var kValue = o[k];",
+          "if (predicate.call(thisArg, kValue, k, o)) {",
+            "return kValue;",
+          "}",
+
+          "k++;",
+        "}",
+
+        "return undefined;",
+      "},",
+      "configurable: true,",
+      "writable: true",
+    "});",
+
+    // Polyfill copied from:
+    // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/findIndex
+    "Object.defineProperty(Array.prototype, 'findIndex', {",
+      "value: function(predicate) {",
+        "if (this == null) {",
+          "throw new TypeError('Array.prototype.findIndex called on null or undefined');",
+        "}",
+        "if (typeof predicate !== 'function') {",
+          "throw new TypeError('predicate must be a function');",
+        "}",
+        "var list = Object(this);",
+        "var length = list.length >>> 0;",
+        "var thisArg = arguments[1];",
+        "var value;",
+
+        "for (var i = 0; i < length; i++) {",
+          "value = list[i];",
+          "if (predicate.call(thisArg, value, i, list)) {",
+            "return i;",
+          "}",
+        "}",
+        "return -1;",
+      "},",
+      "configurable: true,",
+      "writable: true",
+    "});",
+
+    // Polyfill copied from:
+    // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/flat
+    "Object.defineProperty(Array.prototype, 'flat', {",
+      "value: function() {",
+        "if (this == null) {",
+          "throw new TypeError('this is null or not defined');",
+        "}",
+        "var flattend = [];",
+        "(function flat(array) {",
+          "array.forEach(function(el) {",
+            "if (Array.isArray(el)) flat(el);",
+            "else flattend.push(el);",
+          "});",
+        "})(this);",
+        "return flattend;",
+      "},",
+      "configurable: true,",
+      "writable: true",
+    "});",
+
+    // Polyfill copied from:
+    // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/includes
+    "Object.defineProperty(Array.prototype, 'includes',",
+      "{configurable: true, writable: true, value:",
+        "function(searchElement, fromIndex) {",
+          "if (this == null) {",
+            "throw new TypeError('\"this\" is null or not defined');",
+          "}",
+
+          "var o = Object(this);",
+
+          "var len = o.length >>> 0;",
+
+          "if (len === 0) {",
+            "return false;",
+          "}",
+
+          "var n = fromIndex | 0;",
+
+          "var k = Math.max(n >= 0 ? n : len - Math.abs(n), 0);",
+
+          "function sameValueZero(x, y) {",
+            "return x === y || (typeof x === 'number' && typeof y === 'number' && isNaN(x) && isNaN(y));",
+          "}",
+
+          "while (k < len) {",
+            "if (sameValueZero(o[k], searchElement)) {",
+              "return true;",
+            "}",
+            "k++;",
+          "}",
+
+          "return false;",
+        "}",
+    "});",
+
 // Polyfill copied from:
 // developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/every
 "Object.defineProperty(Array.prototype, 'every',",
