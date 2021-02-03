@@ -1143,7 +1143,7 @@ Interpreter.prototype.initArray = function(globalObject) {
         "}",
 
         "return O;",
-      "};",
+      "}",
     "});",
 
     // Polyfill copied from:
