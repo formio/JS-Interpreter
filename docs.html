@@ -10,10 +10,10 @@
   <h1>JS-Interpreter Documentation</h1>
 
   <p>JS-Interpreter is a sandboxed JavaScript interpreter written in JavaScript.
-  It allows for execution of arbitrary JavaScript code line by line.  Execution
-  is completely isolated from the main JavaScript environment.  Multiple
-  instances of the JS-Interpreter allow for multi-threaded concurrent JavaScript
-  without the use of Web Workers.</p>
+  It allows for execution of arbitrary ES5 JavaScript code line by line.
+  Execution is completely isolated from the main JavaScript environment.
+  Multiple instances of the JS-Interpreter allow for multi-threaded concurrent
+  JavaScript without the use of Web Workers.</p>
 
   <p>Play with the <a href="index.html">JS-Interpreter demo</a>.</p>
 
@@ -28,7 +28,7 @@
     &lt;script src="interpreter.js"&gt;&lt;/script&gt;
   </pre>
 
-  <p>Alternatively, use the compressed bundle (70kb):</p>
+  <p>Alternatively, use the compressed bundle (80kb):</p>
 
   <pre>
     &lt;script src="acorn_interpreter.js"&gt;&lt;/script&gt;
@@ -61,6 +61,9 @@
     nextStep();
   </pre>
 
+  <p>By default, one step is a single operation.  For an example of how to
+  step line by line, see the <a href="demos/line.html">line step demo</a>.</p>
+
   <p>Alternatively, if the code is known to be safe from infinite loops, it may
   be executed to completion by calling the <code>run</code> function once:</p>
 
@@ -69,8 +72,9 @@
   </pre>
 
   <p>In cases where the code encounters asynchronous API calls (see below),
-  <code>run</code> will return true if it is blocked and needs to be reexecuted
-  at a later time.</p>
+  or there are pending tasks created by <code>setTimeout</code>/<code>setInterval</code>,
+  <code>run</code> will return true if it is blocked and needs to be called
+  again at a later time.</p>
 
   <h2>External API</h2>
 
@@ -92,8 +96,8 @@
     var initFunc = function(interpreter, globalObject) {
       interpreter.setProperty(globalObject, 'url', String(location));
 
-      var wrapper = function(text) {
-        return alert(text);
+      var wrapper = function alert(text) {
+        return window.alert(text);
       };
       interpreter.setProperty(globalObject, 'alert',
           interpreter.createNativeFunction(wrapper));
@@ -114,7 +118,7 @@
       interpreter.setProperty(robot, 'fast', 99);
 
       // Define 'robot.forwards' function.
-      var wrapper = function(speed) {
+      var wrapper = function forwards(speed) {
         return realRobot.forwards(speed);
       };
       interpreter.setProperty(robot, 'forwards',
@@ -135,11 +139,11 @@
   <code>initFunc</code> like this:</p>
 
   <pre>
-    var wrapper = function(href, callback) {
+    var wrapper = function getXhr(href, callback) {
       var req = new XMLHttpRequest();
       req.open('GET', href, true);
       req.onreadystatechange = function() {
-        if (req.readyState == 4 && req.status == 200) {
+        if (req.readyState === 4 && req.status === 200) {
           callback(req.responseText);
         }
       };
@@ -168,8 +172,8 @@
   later time.  Loops, variables, closures, and all other state is preserved.</p>
 
   <p>Uses of this feature include continuously executing programs that survive
-  a server reboot, loading a stack image that has been computed up to a certain
-  point, forking execution, or rolling back to a stored state.</p>
+  a server reboot, or loading a stack image that has been computed up to a
+  certain point, or forking execution, or rolling back to a stored state.</p>
 
   <p>Serialization has several limitations.  One is that the serialized format
   is not human-readable.  It is also not guaranteed that future versions of the
@@ -177,10 +181,13 @@
   Another limitation is that serialization reaches beyond the public API, and
   thus does not work with the compressed bundle (acorn_interpreter.js).  Yet
   another limitation is that the serialization format is rather large; it has a
-  60 kb overhead due to the standard polyfills.</p>
+  300 kb overhead due to the standard polyfills.</p>
 
   <p>For a working example, see the
   <a href="demos/serialize.html">serialization demo</a>.</p>
+
+  <p>Another example shows how to use serialization of every step to enable
+  <a href="demos/backwards.html">stepping backwards</a>.</p>
 
   <h2>Threading</h2>
 
@@ -195,12 +202,35 @@
   <p>A slightly more complex case is where two or more threads should share the
   same global scope.  To implement this, 1) create one JS-Interpreter, 2) create
   a separate list for stacks, 3) assign the <code>.scope</code> property of the
-  root node of each stack to the interpreter's <code>.globalScope</code> property,
-  4) then assign the desired stack to the interpreter's <code>.stateStack</code>
-  property before calling <code>step</code>.</p>
+  root node of each stack to the interpreter's <code>.globalScope</code>
+  property, 4) then assign the desired stack to the interpreter's
+  <code>.stateStack</code> property before calling <code>step</code>.</p>
 
   <p>For a working example, see the
   <a href="demos/thread.html">thread demo</a>.</p>
+
+  <h2>Status</h2>
+
+  <p>A JS-Intepreter instance has a <code>getStatus</code> function that returns
+  information about what the interpreter is doing.  The return values are one of:</p>
+
+  <dl>
+    <dt><code>Interpreter.Status.DONE</code></dt>
+    <dd>The interpreter has finished executing all code.
+    Unless <code>appendCode</code> is used, it's done.</dd>
+    <dt><code>Interpreter.Status.STEP</code></dt>
+    <dd>The interpreter has code to be executed and is ready to take another step.</dd>
+    <dt><code>Interpreter.Status.TASK</code></dt>
+    <dd>The interpreter doesn't have any code to be executed at the moment, but
+    there's a pending setTimeout/setInterval task which will provide code at
+    some future time.</dd>
+    <dt><code>Interpreter.Status.ASYNC</code></dt>
+    <dd>The interpreter's execution is blocked by an asynchonous function call
+    (created with <code>createAsyncFunction</code>) which is currently executing.</dd>
+  </dl>
+
+  <p>This status information might be used to determine whether to take another
+  step immediately, or call setTimeout and step later, or stop.</p>
 
   <h2>Security</h2>
 
@@ -215,8 +245,9 @@
   chance to execute.</p>
 
   <p>Memory bombs (e.g. <code>var x='X'; while(1) x=x+x;</code>) can be detected
-  by periodically serializing the interpereter into a JSON string, and aborting
-  execution if the string length is too long.</p>
+  by periodically measuring the size of the stack, and aborting execution if it
+  grows too large.  For a working example, see the
+  <a href="demos/size.html">size demo</a>.</p>
 
   <h2>Regular Expressions</h2>
 
@@ -233,17 +264,20 @@
 
   <dl>
     <dt>API</dt>
-    <dd>None of the DOM APIs are exposed.  That's kind of the point of a
-    sandbox.  If you need these, write your own interfaces.</dd>
+    <dd>None of the DOM APIs are exposed.  That's the point of a sandbox.
+    If you need these, write your own interfaces.  For a working example,
+    see the <a href="demos/dom.html">DOM demo</a>.</dd>
+
     <dt>ES6</dt>
     <dd>More recent additions to JavaScript such as <code>let</code> or
-    <code>Set</code> aren't implemented.  <a href="https://babeljs.io/">Babel</a>
-    is a good method of transpiling newer versions of JavaScript to ES5.</dd>
-    <dt>Getters and Setters</dt>
-    <dd>Getter and setter functions are generally supported, but not on arrays or
-    system properties defined by the ES5 spec (e.g. Error.prototype.name).</dd>
+    <code>Set</code> aren't implemented.  Babel is a good method of transpiling
+    newer versions of JavaScript to ES5.  For a working example, see the
+    <a href="demos/babel.html">Babel demo</a>.</dd>
+
     <dt>toString &amp; valueOf</dt>
-    <dd>User-created functions are not called when casting objects to primitives.</dd>
+    <dd>User-created functions are not called when casting objects to
+    primitives.</dd>
+
     <dt>Performance</dt>
     <dd>The interpreter is not particularly efficient.  It currently runs about
     200 times slower than native JavaScript.</dd>
@@ -256,9 +290,14 @@
 
   <h2>Dependency</h2>
 
-  <p>The only dependency is <a href="http://marijnhaverbeke.nl/acorn/">Acorn</a>,
-  a beautifully written JavaScript parser by Marijn Haverbeke.  It is included
-  in the JS-Interpreter package.</p>
+  <p>The only dependency is <a href="https://github.com/acornjs/acorn">Acorn</a>,
+  a beautifully written JavaScript parser by Marijn Haverbeke.  A minimal
+  version of Acorn for ES5 is included in the JS-Interpreter package.</p>
+
+  <p>Alternatively, one could use latest version from the Acorn repo.  However,
+  it's three times the size due to features (such as ES6+) which JS-Interpreter
+  doesn't use.  There's no benefit in doing so unless your project already uses
+  Acorn for something else.</p>
 
   <h2>Compatibility</h2>
 
@@ -275,7 +314,8 @@
     <li>Opera 11.6</li>
     <li>Safari 5</li>
     <li>Node.js (all versions)</li>
-    <li>JS-Interpreter (<a href="demos/self-interpreter.html">self-interpreter demo</a>)</li>
+    <li>JS-Interpreter
+      (<a href="demos/self-interpreter.html">self-interpreter demo</a>)</li>
   </ul>
 
   <p>Additionally, if safely executing regular expressions is required, then

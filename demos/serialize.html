@@ -10,8 +10,8 @@
   <script>
     var myInterpreter;
     function initAlert(interpreter, globalObject) {
-      var wrapper = function(text) {
-        return alert(arguments.length ? text : '');
+      var wrapper = function alert(text) {
+        return window.alert(arguments.length ? text : '');
       };
       interpreter.setProperty(globalObject, 'alert',
           interpreter.createNativeFunction(wrapper));
@@ -42,9 +42,9 @@
     }
 
     function stepButton() {
-      if (myInterpreter.stateStack.length) {
-        var node =
-            myInterpreter.stateStack[myInterpreter.stateStack.length - 1].node;
+      var stack = myInterpreter.getStateStack();
+      if (stack.length) {
+        var node = stack[stack.length - 1].node;
         var start = node.start;
         var end = node.end;
       } else {
@@ -65,7 +65,7 @@
       disable('disabled');
       if (myInterpreter.run()) {
         // Async function hit.  There's more code to run.
-        disable('');
+        setTimeout(runButton, 100);
       }
     }
 
@@ -74,6 +74,13 @@
       document.getElementById('runButton').disabled = disabled;
       document.getElementById('serializeButton').disabled = disabled;
     }
+
+    function disableDeserialize() {
+      // Disable the deserialize button if the textarea is blank.
+      document.getElementById('deserializeButton').disabled =
+          !document.getElementById('serializeTextarea').value;
+    }
+    setInterval(disableDeserialize, 200);
 
     function createSelection(start, end) {
       var field = document.getElementById('code');
@@ -110,7 +117,7 @@
   </ol>
   <p>Open your browser's console for errors.</p>
 
-  <p><textarea id="code" style="height: 10em;">
+  <p><textarea id="code" style="height: 10em;" spellcheck="false">
 var numbers = [];
 for (var i = 0; i < 3; i++) {
   numbers.push(i);
@@ -124,8 +131,8 @@ alert(numbers.join('-'));
 
   <p>
     <button onclick="serializeButton()" id="serializeButton" disabled="disabled">Serialize &darr;</button>
-    <button onclick="deserializeButton()" id="deserializeButton">Deserialize &uarr;</button><br>
-    <textarea id="serializeTextarea" style="height: 10ex; width: 80ex;"></textarea>
+    <button onclick="deserializeButton()" id="deserializeButton" disabled="disabled">Deserialize &uarr;</button><br>
+    <textarea id="serializeTextarea" style="height: 10ex; width: 80ex;" spellcheck="false"></textarea>
   </p>
 
   <p>Back to the <a href="../docs.html">JS-Interpreter documentation</a>.</p>
