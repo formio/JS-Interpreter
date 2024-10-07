@@ -1,5 +1,5 @@
 {
-  "name": "js-interpreter",
+  "name": "@formio/js-interpreter",
   "version": "1.1.0-formio.3",
   "description": "JS-Interpreter",
   "main": "interpreter.js",
@@ -18,6 +18,6 @@
   },
   "homepage": "https://github.com/formio/JS-Interpreter#readme",
   "dependencies": {
-    "acorn": "^8.0.5"
+    "acorn": "^8.12.1"
   }
 }
