@@ -1,6 +1,6 @@
 {
   "name": "@formio/js-interpreter",
-  "version": "1.1.0-formio.3",
+  "version": "1.1.0-formio.4",
   "description": "JS-Interpreter",
   "main": "interpreter.js",
   "scripts": {
