@@ -5101,6 +5101,7 @@ Interpreter.prototype['stepWhileStatement'] =
 // Preserve top-level API functions from being pruned/renamed by JS compilers.
 // Add others as needed.
 Interpreter.nativeGlobal['Interpreter'] = Interpreter;
+Interpreter.nativeGlobal.acorn = acorn;
 Interpreter.prototype['step'] = Interpreter.prototype.step;
 Interpreter.prototype['run'] = Interpreter.prototype.run;
 Interpreter.prototype['appendCode'] = Interpreter.prototype.appendCode;
